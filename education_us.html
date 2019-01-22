@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script src="lib/d3.v3.min.js"></script>
+<script src="lib/d3.tip.v0.6.3.js"></script>
+<script src="lib/d3-queue.v3.min.js"></script>
+<script src="lib/topojson.v1.min.js"></script>
+<style>
+
+.counties {
+  fill: none;
+}
+
+.states {
+  fill: none;
+  stroke: #fff;
+  stroke-linejoin: round;
+}
+p
+{
+margin: 0;
+padding: 0;
+color:white;
+}
+div {
+    padding: 10px;
+    background-color:rgba(255, 153, 102, 0.5); 
+}
+
+</style>
+<body>
+    <svg width="960" height="600"></svg>
+<script>
+
+var width = 960
+var height = 600
+var margin = {top: 100, right: 50, bottom: 150, left: 100 };
+
+var colors = ["#c5e8ec","#9fd9e0","#80ced6","#65c3cd","#3eb4c1","#32909a","#256c74","#1f5a60","#19484d","#13363a"],
+    color_scale = d3.scale.threshold().domain([0,10, 20, 30, 40, 50, 60, 70, 80, 90]).range(colors);
+
+var education = d3.map();
+var professionals = d3.map();
+var high = d3.map();
+var middle = d3.map();
+var county = d3.map();
+
+var path = d3.geo.path();
+
+var y = d3.scale.linear()
+    .domain([0, 90])
+    .range([0, 160]);
+
+var svg = d3.select("svg")
+          .attr("width", width+margin.left+margin.right)
+          .attr("height", height+margin.bottom+margin.top)
+          .append("g")
+          .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+var g = svg.append("g")
+    .attr("class", "key")
+    // .attr("transform", "translate("+width-mar+",120)");
+    .attr("transform", "translate("+(width-margin.left)+",120)");
+
+g.selectAll("rect")
+  .data(color_scale.range().map(function(d) {
+      d = color_scale.invertExtent(d);
+      if (d[0] == null) d[0] = y.domain()[0]-1;
+      if (d[1] == null) d[1] = y.domain()[1];
+      return d;
+    }))
+  .enter().append("rect")
+    .attr("height", 18)
+    .attr("y", function(d,i) { return (i-1)*18; })
+
+    .attr("width", function(d) { return 24; })
+    .attr("fill", function(d) { return color_scale(d[0]); });
+
+g.call(d3.svg.axis().scale(y)
+    .tickSize(25)
+    .tickFormat(function(y, i) { return y + "%"; })
+    .orient("right")
+    .tickValues(color_scale.domain()))
+    // .attr("transform", "translate("+(width-margin.left)+",120)");
+    .select(".domain")
+    .remove();
+
+d3.queue()
+    .defer(d3.json, "us.json")
+    .defer(d3.csv, "education.csv")
+    .defer(d3.csv, "education_details.csv")
+    .await(ready);
+
+tip = d3.tip().attr('class', 'd3-tip')
+        .offset([-10, 0])
+        .html(function(d) {
+            string_county = "<p> County: "+county.get(d.id)  +"</p>"
+            string_education = "<p>Percentage Educated: "+education.get(d.id) +"% </p>"
+            string_prof = "<p> Qualified Professionals: "+professionals.get(d.id)+"</p>"
+            string_high = "<p> High School graduates: "+high.get(d.id) +"</p>"
+            string_mid = "<p> Middle School or lower graduate: "+ middle.get(d.id)+"</p>"
+            return string_county+string_education+string_prof+string_high+string_mid;
+        });
+
+
+function ready(error, us, data1, data2) {
+    if (error) throw error;
+    console.log()
+    data1.forEach(function(row){
+        education.set(row.id, +row.percent_educated);
+        county.set(row.id, row.name);
+    });
+    data2.forEach(function(row){
+        professionals.set(row.id, row["qualified_professionals"]);
+        high.set(row.id, row.high_school);
+        middle.set(row.id, row.middle_school_or_lower);
+    });
+
+    svg.append("g")
+    .attr("class", "counties")
+    .call(tip)
+    .selectAll("path")
+    .data(topojson.feature(us, us.objects.counties).features)
+    .enter().append("path")
+    .attr("fill", function(d) {return color_scale(d.rate = education.get(d.id)); })
+    .attr("d", path)
+    .on('mouseover', tip.show)
+    .on('mouseout', tip.hide);
+    // .append("title")
+    // .text(function(d) { return d.rate + "%"; });
+
+    svg.append("path")
+      .datum(topojson.mesh(us, us.objects.states, function(a, b) { return a !== b; }))
+      .attr("class", "states")
+      .attr("d", path);
+
+    svg.append("text")
+     .text(
+        "Education Statistics"
+     )
+     .attr("x", (width-margin.left-margin.right)/2)
+     .attr("y", 10)
+     .attr("font-family", "sans-serif")
+     .attr("font-weight", "bold")
+     .attr("font-size", "24px");
+}
+</script>
+</html>

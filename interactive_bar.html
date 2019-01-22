@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script src="lib/d3.v3.min.js"></script>
+<!-- <script src="d3.legend.js"></script> -->
+<style>
+
+body { font: 12px Arial;}
+
+.bar {
+    fill: #aaa;
+}
+.label {
+    fill: #ffffff;   
+}
+#line {
+    position: absolute;
+    left: 600px;
+    top: 0;
+}
+.line { 
+  stroke: steelblue;
+  stroke-width: 2;
+  fill: none;
+}
+.axis {
+    fill: none;
+    stroke: grey;
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+}
+
+
+
+</style>
+<body>
+    <div id="bars"></div>
+    <div id="line"></div>
+<script>
+
+    var data = [
+        {city: 'San Antonio', population_2012: 1383505, growth: {year_2013:25405, year_2014:26644 , year_2015:28593 , year_2016:23591 , year_2017:24208}},
+        {city: 'New York', population_2012: 8383504, growth: {year_2013:75138 , year_2014:62493 , year_2015:61324 , year_2016:32967 , year_2017:7272}},
+        {city: 'Chicago', population_2012: 2717989, growth: {year_2013:6493 , year_2014:2051 , year_2015:-1379 , year_2016:-4879 , year_2017:-3825}},
+        {city: 'Los Angeles', population_2012: 3859267, growth:{year_2013:32516 , year_2014:30885 , year_2015:30791 , year_2016:27657 , year_2017:18643}},
+        {city: 'Phoenix', population_2012: 1495880, growth: {year_2013:25302 , year_2014:26547 , year_2015:27310 , year_2016:27003 , year_2017:24036}}
+        ];
+
+    var cities = []
+
+    data.forEach(function(row){
+        pop2013 = row.population_2012 + row.growth.year_2013 
+        pop2014 = pop2013 + row.growth.year_2014
+        pop2015 = pop2014 + row.growth.year_2015
+        pop2016 = pop2015 + row.growth.year_2016
+        pop2017 = pop2016 + row.growth.year_2017
+
+        
+        var growth_arr = [{"year": 2013, "rate": getGrowthrate(row.population_2012,pop2013)}, 
+                        {"year": 2014, "rate": getGrowthrate(pop2013,pop2014)}, 
+                        {"year": 2015, "rate": getGrowthrate(pop2014,pop2015)}, 
+                        {"year": 2016, "rate": getGrowthrate(pop2015,pop2016)}, 
+                        {"year": 2017, "rate": getGrowthrate(pop2016,pop2017)}]
+        cities.push({"name":row.city, "pop2017": pop2017, "growth":growth_arr});
+    });
+
+    function getGrowthrate(a,b) {
+        return (b-a)/a*100 // .toFixed(2);
+    }
+
+    function compare(a,b) {
+      if (a.pop2017 < b.pop2017)
+        return -1;
+      if (a.pop2017 > b.pop2017)
+        return 1;
+      return 0;
+    }
+
+    cities.sort(compare);
+
+    var margin = { top: 30, right: 30, bottom: 0, left: 100 };
+    var width = 600 - margin.left - margin.right;
+    var height = 300 - margin.top - margin.bottom;
+
+    var svg = d3.select("#bars").append("svg")
+      .attr("width", width+margin.left+margin.right)
+      .attr("height", height+margin.bottom+margin.top)
+      .append("g")
+      .attr("transform", "translate(" + margin.left*1 + "," + margin.top*1 + ")");
+
+
+    var x = d3.scale.linear()
+                .range([0, width])
+                .domain([0, d3.max(cities, function (d) {
+                    return d.pop2017;
+                })]);
+    var y = d3.scale.ordinal()
+            .rangeRoundBands([height, 0], .1)
+            .domain(cities.map(function (d) {
+                return d.name;
+            }));
+                
+    var yAxis = d3.svg.axis()
+                    .scale(y)
+                    //no tick marks
+                    .tickSize(0)
+                    .orient("left");
+
+    var gy = svg.append("g")
+        .attr("class", "y axis")
+        .call(yAxis)
+        .style("fill", "#aaa");
+
+    var bars = svg.selectAll(".bar")
+        .data(cities)
+        .enter()
+        .append("g")
+
+    //append rects
+    bars.append("rect")
+        .attr("class", "bar")
+        .attr("y", function (d) {
+            return y(d.name);
+        })
+        .attr("height", y.rangeBand())
+        .attr("x", 0)
+        .attr("width", function (d) {
+            return x(d.pop2017);
+        })
+        .on("mouseover",handleMouseOver)
+            // draw(d.growth);
+        .on("mouseout", handleMouseOut);
+
+    //add a value label to the right of each bar
+    bars.append("text")
+        .attr("class", "label")
+        //y position of the label is halfway down the bar
+        .attr("y", function (d) {
+            return y(d.name) + y.rangeBand() / 2 + 4;
+        })
+        //x position is 3 pixels to the right of the bar
+        .attr("x", function (d) {
+            return 10;
+        })
+        .text(function (d) {
+            return with_com(d.pop2017);
+        });
+
+    
+    function with_com(x){
+        if (x == null) {return null}
+        return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+
+    function handleMouseOver(d,i){
+        d3.select(this).style("fill", "blue");
+        growth = d.growth
+        draw(growth)
+    }
+    
+    function draw(growth){
+        var margin = { top: 50, right: 30, bottom: 50, left: 50 };
+        var width = 600 - margin.left - margin.right;
+        var height = 300 - margin.top - margin.bottom;
+        var xx = d3.scale.linear()
+            .rangeRound([0, width]);
+
+        var yy = d3.scale.linear()
+            .rangeRound([height, 0]);
+
+        years = ["2013","2014","2015","2016","2017"]
+        // Define the axes
+        var xxAxis = d3.svg.axis().scale(xx)
+        .orient("bottom").ticks(5).tickFormat(function(d,i) { return years[i]; });;
+
+        var yyAxis = d3.svg.axis().scale(yy)
+        .orient("left").ticks(10);
+
+        var line = d3.svg.line()
+            .x(function(d) { return xx(d.year); })
+            .y(function(d) { return yy(d.rate); });
+        xx.domain(d3.extent(growth, function(d) { return d.year; }));
+        yy.domain(d3.extent(growth, function(d) { return d.rate; }));
+        
+        var rate_svg = d3.select("#line").append("svg")
+            .attr("id","line_svg")
+              .attr("width", width+margin.left+margin.right)
+              .attr("height", height+margin.bottom+margin.top)
+              .append("g")
+              .attr("transform", "translate(" + margin.left+ "," + margin.top+ ")");
+
+        rate_svg.append("path")
+            .data(growth)
+            .attr("class", "line")
+            .attr("d", line(growth));
+
+        // Add the X Axis
+        rate_svg.append("g")     
+            .attr("class", "x axis")
+            .attr("transform", "translate(0," + height+ ")")
+            .call(xxAxis);
+
+        // Add the Y Axis
+        rate_svg.append("g")     
+            .attr("class", "y axis")
+            .call(yyAxis);
+
+        rate_svg.append("text")
+          .attr("x", width)
+          .attr("y", height)
+          .attr("dy", "3em")
+          .text("Year");
+
+        rate_svg.append("text")
+          .attr("x", 0)
+          .attr("y", 0)
+          .attr("dy","-1em")
+          .attr("dx", "-3em")
+          .text("Pct %");
+    }
+
+    function handleMouseOut(){
+        d3.select(this).style("fill", "#aaa");
+        // remove graph
+        d3.select("#line_svg").remove();
+    }
+
+
+</script>
+</body>
+</html>
